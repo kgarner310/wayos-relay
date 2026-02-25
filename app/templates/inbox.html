@@ -10,6 +10,41 @@
   </div>
 </div>
 
+<!-- Filter bar -->
+<form class="filter-bar" method="get" action="/">
+  <label class="filter-group">
+    <span>Status</span>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      {% for s in all_statuses %}
+      <option value="{{ s }}" {% if s == current_status %}selected{% endif %}>{{ s | replace("_", " ") | title }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="filter-group">
+    <span>Intent</span>
+    <select name="intent" onchange="this.form.submit()">
+      <option value="">All Intents</option>
+      {% for i in all_intents %}
+      <option value="{{ i }}" {% if i == current_intent %}selected{% endif %}>{{ i | replace("_", " ") | title }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="filter-group">
+    <span>Sort</span>
+    <select name="sort" onchange="this.form.submit()">
+      <option value="urgency_desc" {% if current_sort == 'urgency_desc' %}selected{% endif %}>Urgency (High → Low)</option>
+      <option value="urgency_asc" {% if current_sort == 'urgency_asc' %}selected{% endif %}>Urgency (Low → High)</option>
+      <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest First</option>
+      <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+      <option value="confidence_desc" {% if current_sort == 'confidence_desc' %}selected{% endif %}>Confidence (High → Low)</option>
+    </select>
+  </label>
+  {% if current_status or current_intent %}
+  <a href="/" class="btn btn-secondary btn-sm">Clear Filters</a>
+  {% endif %}
+</form>
+
 <!-- Simulate modal -->
 <div id="simulate-modal" class="modal" style="display:none">
   <div class="modal-content">
@@ -40,9 +75,16 @@
 
 {% if requests|length == 0 %}
   <div class="empty-state">
-    <p>No requests yet. Click <strong>Load Seeds</strong> to add demo data or <strong>Simulate Message</strong> to create one.</p>
+    <p>No requests {% if current_status or current_intent %}match your filters{% else %}yet{% endif %}.
+    {% if not current_status and not current_intent %}
+      Click <strong>Load Seeds</strong> to add demo data or <strong>Simulate Message</strong> to create one.
+    {% else %}
+      <a href="/">Clear filters</a> to see all requests.
+    {% endif %}
+    </p>
   </div>
 {% else %}
+<p class="result-count">{{ requests|length }} request{{ "s" if requests|length != 1 else "" }}</p>
 <table class="inbox-table">
   <thead>
     <tr>
@@ -61,7 +103,7 @@
     {% set entities = json_loads(sr.extracted_entities_json) %}
     <tr class="status-{{ sr.raw_message.status.value if sr.raw_message else 'new' }}" onclick="window.location='/request/{{ sr.id }}'">
       <td>
-        <span class="badge urgency-score urgency-score-{{ (sr.urgency_score // 25) | min(3) }}">{{ sr.urgency_score }}</span>
+        <span class="badge urgency-score urgency-score-{{ [(sr.urgency_score // 25), 3] | min }}">{{ sr.urgency_score }}</span>
       </td>
       <td>
         <span class="badge confidence-score">{{ sr.confidence_score }}%</span>
@@ -106,7 +148,7 @@ document.getElementById('simulate-form').addEventListener('submit', async (e) =>
     body: JSON.stringify(data),
   });
   if (res.ok) {
-    window.location.reload();
+    window.location.href = '/';
   } else {
     alert('Error: ' + (await res.text()));
   }
@@ -118,7 +160,7 @@ async function seedData() {
   btn.textContent = 'Loading...';
   const res = await fetch('/api/seed', {method: 'POST'});
   if (res.ok) {
-    window.location.reload();
+    window.location.href = '/';
   } else {
     alert('Error: ' + (await res.text()));
     btn.disabled = false;

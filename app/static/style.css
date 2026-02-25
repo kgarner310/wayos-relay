@@ -40,6 +40,49 @@ body {
 .inbox-header h1 { font-size: 1.5rem; }
 .actions { display: flex; gap: 0.5rem; }
 
+/* === Filter Bar === */
+.filter-bar {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  background: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.filter-group span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+.filter-group select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fafafa;
+  cursor: pointer;
+}
+.filter-group select:focus {
+  border-color: #4fc3f7;
+  outline: none;
+}
+
+.result-count {
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 0.5rem;
+}
+
 /* === Buttons === */
 .btn {
   padding: 0.5rem 1rem;
@@ -49,6 +92,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
+  text-decoration: none;
+  display: inline-block;
 }
 .btn:hover { opacity: 0.85; }
 .btn:disabled { opacity: 0.5; cursor: default; }
@@ -56,6 +101,7 @@ body {
 .btn-secondary { background: #e0e0e0; color: #333; }
 .btn-success { background: #66bb6a; color: #fff; }
 .btn-danger { background: #ef5350; color: #fff; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
 
 /* === Table === */
 .inbox-table {
@@ -93,11 +139,14 @@ body {
   font-weight: 600;
   text-transform: uppercase;
 }
+/* Status badges — all statuses covered */
 .status-badge-new { background: #e3f2fd; color: #1565c0; }
-.status-badge-reviewed { background: #fff3e0; color: #e65100; }
+.status-badge-parsed { background: #e8eaf6; color: #283593; }
+.status-badge-review { background: #fff3e0; color: #e65100; }
 .status-badge-approved { background: #e8f5e9; color: #2e7d32; }
 .status-badge-sent { background: #e0f2f1; color: #00695c; }
 .status-badge-rejected { background: #fce4ec; color: #c62828; }
+.status-badge-error { background: #ffebee; color: #b71c1c; }
 
 /* Urgency 0-100 mapped to 4 tiers (0-24, 25-49, 50-74, 75-100) */
 .urgency-score-0 { background: #e8f5e9; color: #2e7d32; }
@@ -144,6 +193,8 @@ body {
 .card dt { font-weight: 600; color: #666; font-size: 0.85rem; }
 .card dd { font-size: 0.9rem; }
 
+.section-gap { margin-top: 1.5rem; }
+
 .msg-body {
   background: #f9f9fb;
   border: 1px solid #e8e8e8;
@@ -172,14 +223,19 @@ textarea {
   margin-top: 1rem;
 }
 
-.approved-info {
+/* Approval / Rejection badges */
+.event-badge {
   margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
   font-size: 0.85rem;
-  color: #2e7d32;
 }
+.event-approve { background: #e8f5e9; color: #2e7d32; }
+.event-reject { background: #fce4ec; color: #c62828; }
+
+.muted { color: #888; font-size: 0.85rem; }
 
 /* === Audit === */
-.audit-section { margin-top: 0; }
 .audit-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .audit-table th {
   text-align: left;
@@ -189,6 +245,58 @@ textarea {
   text-transform: uppercase;
 }
 .audit-table td { padding: 0.4rem 0.5rem; border-top: 1px solid #eee; }
+
+/* === Compliance Timeline === */
+.timeline {
+  position: relative;
+  padding-left: 2rem;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 0.9rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ddd;
+}
+.timeline-item {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+.timeline-icon {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 50%;
+  z-index: 1;
+  margin-left: -2rem;
+}
+.timeline-body { flex: 1; }
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.timeline-header strong { font-size: 0.9rem; }
+.timeline-time { font-size: 0.75rem; color: #888; font-family: monospace; }
+.timeline-detail { font-size: 0.85rem; color: #555; margin-top: 0.15rem; }
+
+.timeline-export {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
 
 /* === Modal === */
 .modal {
@@ -208,7 +316,7 @@ textarea {
   max-width: 500px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.15);
 }
-.modal-content h2 { margin-bottom: 1rem; }
+.modal-content h2 { margin-bottom: 0.5rem; }
 .modal-content label {
   display: block;
   font-size: 0.85rem;

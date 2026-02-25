@@ -31,6 +31,7 @@ def ingest_message(
     subject: str | None = None,
     body: str,
     raw_payload: str = "",
+    attachments_json: str | None = None,
 ) -> StructuredRequest:
     """Full pipeline: store raw -> parse -> generate drafts -> return StructuredRequest."""
 
@@ -41,6 +42,7 @@ def ingest_message(
         to_address=to_address,
         subject=subject,
         body_text=body,
+        attachments_json=attachments_json,
         status=MessageStatus.new,
     )
     session.add(raw)
@@ -68,12 +70,17 @@ def ingest_message(
     name = result.entities.get("customer_name", "")
     policy = result.entities.get("policy_number", "")
 
-    client_reply = generate_client_reply(result.intent, name, policy)
-    carrier_email = generate_carrier_email(result.intent, name, policy, body)
-    ams_note = generate_ams_note(
-        result.intent, name, policy, channel.value, body, result.entities
+    client_reply = generate_client_reply(
+        result.intent, name, policy, entities=result.entities,
     )
-    checklist = generate_checklist(result.intent)
+    carrier_email = generate_carrier_email(
+        result.intent, name, policy, body, entities=result.entities,
+    )
+    ams_note = generate_ams_note(
+        result.intent, name, policy, channel.value, body,
+        entities=result.entities,
+    )
+    checklist = generate_checklist(result.intent, entities=result.entities)
 
     drafts = DraftArtifacts(
         structured_request_id=sr.id,
