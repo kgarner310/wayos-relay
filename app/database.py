@@ -7,6 +7,7 @@ engine = create_engine(settings.database_url, echo=False, connect_args=connect_a
 
 
 def create_db_and_tables() -> None:
+    import app.models  # noqa: F401 — ensure all tables are registered
     SQLModel.metadata.create_all(engine)
 
 

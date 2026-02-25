@@ -26,8 +26,8 @@ def load_seeds() -> int:
             ingest_message(
                 session,
                 channel=channel,
-                sender=msg["sender"],
-                subject=msg.get("subject", ""),
+                from_address=msg["sender"],
+                subject=msg.get("subject") or None,
                 body=msg["body"],
                 raw_payload=json.dumps(msg),
             )

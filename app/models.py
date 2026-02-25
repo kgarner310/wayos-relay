@@ -1,12 +1,17 @@
 import enum
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlmodel import Field, SQLModel, Relationship
+from sqlmodel import Field, Relationship, SQLModel
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def new_uuid() -> str:
+    return str(uuid.uuid4())
 
 
 # ---------- Enums ----------
@@ -14,7 +19,7 @@ def utcnow() -> datetime:
 class ChannelType(str, enum.Enum):
     sms = "sms"
     email = "email"
-    manual = "manual"  # simulate button
+    manual = "manual"
 
 
 class IntentCategory(str, enum.Enum):
@@ -27,12 +32,24 @@ class IntentCategory(str, enum.Enum):
     other = "other"
 
 
-class RequestStatus(str, enum.Enum):
+class MessageStatus(str, enum.Enum):
     new = "new"
-    reviewed = "reviewed"
+    parsed = "parsed"
+    review = "review"
     approved = "approved"
-    rejected = "rejected"
     sent = "sent"
+    rejected = "rejected"
+    error = "error"
+
+
+class ApprovalAction(str, enum.Enum):
+    approve = "approve"
+    reject = "reject"
+
+
+class OutboundKind(str, enum.Enum):
+    client = "client"
+    carrier = "carrier"
 
 
 # ---------- Tables ----------
@@ -40,53 +57,85 @@ class RequestStatus(str, enum.Enum):
 class RawMessage(SQLModel, table=True):
     __tablename__ = "raw_messages"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: str = Field(default_factory=new_uuid, primary_key=True)
     channel: ChannelType
-    sender: str  # phone number or email address
-    subject: str = ""
-    body: str
-    raw_payload: str = ""  # full original data (JSON for SMS, headers for email)
+    from_address: str
+    to_address: str = ""
+    subject: Optional[str] = None
+    body_text: str
     received_at: datetime = Field(default_factory=utcnow)
+    attachments_json: Optional[str] = None
+    status: MessageStatus = MessageStatus.new
 
-    # One-to-one relationship
-    structured_request: Optional["StructuredRequest"] = Relationship(back_populates="raw_message")
+    structured_request: Optional["StructuredRequest"] = Relationship(
+        back_populates="raw_message"
+    )
 
 
 class StructuredRequest(SQLModel, table=True):
     __tablename__ = "structured_requests"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    raw_message_id: int = Field(foreign_key="raw_messages.id", unique=True)
-    customer_name: str = ""
-    policy_hint: str = ""  # any policy number fragment detected
-    intent: IntentCategory = IntentCategory.other
-    urgency: int = Field(default=3, ge=1, le=5)  # 1=low, 5=critical
-    status: RequestStatus = RequestStatus.new
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    raw_message_id: str = Field(foreign_key="raw_messages.id", unique=True)
+    intent_category: IntentCategory = IntentCategory.other
+    extracted_entities_json: str = "{}"
+    urgency_score: int = Field(default=30, ge=0, le=100)
+    confidence_score: int = Field(default=50, ge=0, le=100)
+    created_at: datetime = Field(default_factory=utcnow)
 
-    # Generated drafts
+    raw_message: Optional[RawMessage] = Relationship(back_populates="structured_request")
+    draft_artifacts: Optional["DraftArtifacts"] = Relationship(
+        back_populates="structured_request"
+    )
+    approval_events: list["ApprovalEvent"] = Relationship(back_populates="structured_request")
+    outbound_messages: list["OutboundMessage"] = Relationship(back_populates="structured_request")
+
+
+class DraftArtifacts(SQLModel, table=True):
+    __tablename__ = "draft_artifacts"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    structured_request_id: str = Field(foreign_key="structured_requests.id", unique=True)
     client_reply_draft: str = ""
     carrier_email_draft: str = ""
     ams_note_draft: str = ""
-
-    # Approval metadata
-    approved_by: str = ""
-    approved_at: Optional[datetime] = None
-
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
-
-    raw_message: Optional[RawMessage] = Relationship(back_populates="structured_request")
-    audit_logs: list["AuditLog"] = Relationship(back_populates="structured_request")
-
-
-class AuditLog(SQLModel, table=True):
-    __tablename__ = "audit_logs"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    structured_request_id: int = Field(foreign_key="structured_requests.id")
-    action: str  # created, approved, rejected, sent, edited
-    actor: str = "system"
-    details: str = ""
+    internal_checklist: str = "[]"  # JSON array
     created_at: datetime = Field(default_factory=utcnow)
 
-    structured_request: Optional[StructuredRequest] = Relationship(back_populates="audit_logs")
+    structured_request: Optional[StructuredRequest] = Relationship(
+        back_populates="draft_artifacts"
+    )
+
+
+class ApprovalEvent(SQLModel, table=True):
+    __tablename__ = "approval_events"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    structured_request_id: str = Field(foreign_key="structured_requests.id")
+    action: ApprovalAction
+    actor_name: str = ""
+    actor_email: str = ""
+    approved_at: datetime = Field(default_factory=utcnow)
+    edits_json: Optional[str] = None
+
+    structured_request: Optional[StructuredRequest] = Relationship(
+        back_populates="approval_events"
+    )
+
+
+class OutboundMessage(SQLModel, table=True):
+    __tablename__ = "outbound_messages"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    structured_request_id: str = Field(foreign_key="structured_requests.id")
+    kind: OutboundKind
+    to_address: str
+    subject: str = ""
+    body: str = ""
+    sent_at: Optional[datetime] = None
+    transport: str = "smtp"
+    result_json: str = "{}"
+
+    structured_request: Optional[StructuredRequest] = Relationship(
+        back_populates="outbound_messages"
+    )

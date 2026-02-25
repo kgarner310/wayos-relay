@@ -28,11 +28,11 @@ def twilio_inbound_sms(
     ingest_message(
         session,
         channel=ChannelType.sms,
-        sender=From,
+        from_address=From,
+        to_address=To,
         body=Body,
         raw_payload=raw_payload,
     )
 
-    # Return minimal TwiML — no auto-reply; agent approves first
     twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
     return Response(content=twiml, media_type="application/xml")

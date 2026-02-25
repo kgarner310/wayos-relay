@@ -46,8 +46,8 @@
 <table class="inbox-table">
   <thead>
     <tr>
-      <th>ID</th>
       <th>Urgency</th>
+      <th>Confidence</th>
       <th>Status</th>
       <th>Intent</th>
       <th>Customer</th>
@@ -58,23 +58,26 @@
   </thead>
   <tbody>
     {% for sr in requests %}
-    <tr class="status-{{ sr.status.value }} urgency-{{ sr.urgency }}" onclick="window.location='/request/{{ sr.id }}'">
-      <td>{{ sr.id }}</td>
+    {% set entities = json_loads(sr.extracted_entities_json) %}
+    <tr class="status-{{ sr.raw_message.status.value if sr.raw_message else 'new' }}" onclick="window.location='/request/{{ sr.id }}'">
       <td>
-        <span class="badge urgency-badge-{{ sr.urgency }}">{{ sr.urgency }}</span>
+        <span class="badge urgency-score urgency-score-{{ (sr.urgency_score // 25) | min(3) }}">{{ sr.urgency_score }}</span>
       </td>
       <td>
-        <span class="badge status-badge-{{ sr.status.value }}">{{ sr.status.value }}</span>
+        <span class="badge confidence-score">{{ sr.confidence_score }}%</span>
       </td>
-      <td>{{ sr.intent.value | replace("_", " ") | title }}</td>
-      <td>{{ sr.customer_name or "Unknown" }}</td>
+      <td>
+        <span class="badge status-badge-{{ sr.raw_message.status.value if sr.raw_message else 'new' }}">{{ sr.raw_message.status.value if sr.raw_message else "new" }}</span>
+      </td>
+      <td>{{ sr.intent_category.value | replace("_", " ") | title }}</td>
+      <td>{{ entities.get("customer_name", "Unknown") }}</td>
       <td>{{ sr.raw_message.channel.value if sr.raw_message else "?" }}</td>
       <td class="preview-cell">
         {% if sr.raw_message %}
           {% if sr.raw_message.subject %}
             {{ sr.raw_message.subject[:60] }}
           {% else %}
-            {{ sr.raw_message.body[:60] }}...
+            {{ sr.raw_message.body_text[:60] }}...
           {% endif %}
         {% endif %}
       </td>
