@@ -11,7 +11,7 @@
 </div>
 
 <!-- Filter bar -->
-<form class="filter-bar" method="get" action="/">
+<form class="filter-bar" method="get" action="/inbox">
   <label class="filter-group">
     <span>Status</span>
     <select name="status" onchange="this.form.submit()">
@@ -41,7 +41,7 @@
     </select>
   </label>
   {% if current_status or current_intent %}
-  <a href="/" class="btn btn-secondary btn-sm">Clear Filters</a>
+  <a href="/inbox" class="btn btn-secondary btn-sm">Clear Filters</a>
   {% endif %}
 </form>
 
@@ -79,7 +79,7 @@
     {% if not current_status and not current_intent %}
       Click <strong>Load Seeds</strong> to add demo data or <strong>Simulate Message</strong> to create one.
     {% else %}
-      <a href="/">Clear filters</a> to see all requests.
+      <a href="/inbox">Clear filters</a> to see all requests.
     {% endif %}
     </p>
   </div>
@@ -148,7 +148,7 @@ document.getElementById('simulate-form').addEventListener('submit', async (e) =>
     body: JSON.stringify(data),
   });
   if (res.ok) {
-    window.location.href = '/';
+    window.location.href = '/inbox';
   } else {
     alert('Error: ' + (await res.text()));
   }
@@ -160,7 +160,7 @@ async function seedData() {
   btn.textContent = 'Loading...';
   const res = await fetch('/api/seed', {method: 'POST'});
   if (res.ok) {
-    window.location.href = '/';
+    window.location.href = '/inbox';
   } else {
     alert('Error: ' + (await res.text()));
     btn.disabled = false;

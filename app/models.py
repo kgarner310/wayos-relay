@@ -139,3 +139,26 @@ class OutboundMessage(SQLModel, table=True):
     structured_request: Optional[StructuredRequest] = Relationship(
         back_populates="outbound_messages"
     )
+
+
+# ---------- Digest Tables ----------
+
+class DigestRun(SQLModel, table=True):
+    """A single digest generation run (e.g. 8am batch)."""
+    __tablename__ = "digest_runs"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    generated_at: datetime = Field(default_factory=utcnow)
+    period_label: str = ""  # "morning", "midday", "afternoon", or "manual"
+    item_count: int = 0
+    sent_to: str = ""  # comma-separated emails that received this digest
+    html_snapshot: str = ""  # rendered HTML for archive/reprint
+
+
+class DigestItem(SQLModel, table=True):
+    """Links a StructuredRequest into a specific DigestRun."""
+    __tablename__ = "digest_items"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    digest_run_id: str = Field(foreign_key="digest_runs.id")
+    structured_request_id: str = Field(foreign_key="structured_requests.id")

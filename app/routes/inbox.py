@@ -8,13 +8,70 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import IntentCategory, MessageStatus, RawMessage, StructuredRequest
+from app.models import (
+    DigestRun,
+    IntentCategory,
+    MessageStatus,
+    RawMessage,
+    StructuredRequest,
+)
 
 router = APIRouter(tags=["ui"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+# ---------- Dashboard (home page) ----------
+
 @router.get("/", response_class=HTMLResponse)
+def dashboard(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    # Pending items count
+    pending_stmt = (
+        select(StructuredRequest)
+        .join(RawMessage, StructuredRequest.raw_message_id == RawMessage.id)
+        .where(RawMessage.status == MessageStatus.review)
+    )
+    pending = list(session.exec(pending_stmt).all())
+
+    # Group pending by intent
+    by_intent: dict[str, int] = {}
+    for sr in pending:
+        key = sr.intent_category.value
+        by_intent[key] = by_intent.get(key, 0) + 1
+
+    # Urgent count
+    urgent_count = sum(1 for sr in pending if sr.urgency_score >= 70)
+
+    # Recent digests
+    digest_stmt = (
+        select(DigestRun)
+        .order_by(DigestRun.generated_at.desc())  # type: ignore[union-attr]
+        .limit(5)
+    )
+    recent_digests = list(session.exec(digest_stmt).all())
+
+    # Total processed today (all statuses)
+    all_stmt = select(StructuredRequest).order_by(
+        StructuredRequest.created_at.desc()  # type: ignore[union-attr]
+    )
+    all_requests = list(session.exec(all_stmt).all())
+    total = len(all_requests)
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "pending_count": len(pending),
+        "urgent_count": urgent_count,
+        "total_count": total,
+        "by_intent": by_intent,
+        "recent_digests": recent_digests,
+    })
+
+
+# ---------- Inbox (full list with filters) ----------
+
+@router.get("/inbox", response_class=HTMLResponse)
 def inbox_list(
     request: Request,
     status: Optional[str] = Query(None),
@@ -25,15 +82,13 @@ def inbox_list(
     stmt = select(StructuredRequest)
 
     # --- Filters ---
-    # Status filter: join to RawMessage
     if status:
         try:
             status_enum = MessageStatus(status)
             stmt = stmt.join(RawMessage).where(RawMessage.status == status_enum)
         except ValueError:
-            pass  # ignore invalid status
+            pass
 
-    # Intent filter
     if intent:
         try:
             intent_enum = IntentCategory(intent)
@@ -63,12 +118,10 @@ def inbox_list(
         stmt = stmt.order_by(clause)
 
     requests_list = session.exec(stmt).all()
-    # Eager-load relationships for the template
     for sr in requests_list:
         _ = sr.raw_message
         _ = sr.draft_artifacts
 
-    # Build enum values for filter dropdowns
     all_statuses = [s.value for s in MessageStatus]
     all_intents = [i.value for i in IntentCategory]
 
@@ -76,15 +129,30 @@ def inbox_list(
         "request": request,
         "requests": requests_list,
         "json_loads": json.loads,
-        # Current filter values
         "current_status": status or "",
         "current_intent": intent or "",
         "current_sort": sort,
-        # Dropdown options
         "all_statuses": all_statuses,
         "all_intents": all_intents,
     })
 
+
+# ---------- Digest history ----------
+
+@router.get("/digests", response_class=HTMLResponse)
+def digest_list(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    stmt = select(DigestRun).order_by(DigestRun.generated_at.desc())  # type: ignore[union-attr]
+    digests = list(session.exec(stmt).all())
+    return templates.TemplateResponse("digests.html", {
+        "request": request,
+        "digests": digests,
+    })
+
+
+# ---------- Request detail ----------
 
 @router.get("/request/{request_id}", response_class=HTMLResponse)
 def request_detail(
@@ -96,7 +164,6 @@ def request_detail(
     if not sr:
         return HTMLResponse("<h1>Not Found</h1>", status_code=404)
 
-    # Eager-load all relationships
     _ = sr.raw_message
     _ = sr.draft_artifacts
     _ = sr.approval_events
@@ -105,7 +172,6 @@ def request_detail(
     entities = json.loads(sr.extracted_entities_json)
     checklist = json.loads(sr.draft_artifacts.internal_checklist) if sr.draft_artifacts else []
 
-    # Build compliance timeline inline
     timeline = _build_timeline_for_template(sr)
 
     return templates.TemplateResponse("detail.html", {
@@ -125,14 +191,14 @@ def _build_timeline_for_template(sr: StructuredRequest) -> list[dict]:
     if raw:
         events.append({
             "timestamp": raw.received_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "icon": "📨",
+            "icon": "&#128232;",
             "label": "Message Received",
             "detail": f"Inbound {raw.channel.value.upper()} from {raw.from_address}",
         })
 
     events.append({
         "timestamp": sr.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "icon": "🔍",
+        "icon": "&#128269;",
         "label": "Classified",
         "detail": (
             f"Intent: {sr.intent_category.value.replace('_', ' ').title()}, "
@@ -144,19 +210,19 @@ def _build_timeline_for_template(sr: StructuredRequest) -> list[dict]:
     if drafts:
         events.append({
             "timestamp": drafts.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "icon": "📝",
+            "icon": "&#128221;",
             "label": "Drafts Generated",
             "detail": "Client reply, carrier email, AMS note generated",
         })
 
     for ae in sr.approval_events:
-        icon = "✅" if ae.action.value == "approve" else "❌"
+        icon = "&#9989;" if ae.action.value == "approve" else "&#10060;"
         label = "Approved" if ae.action.value == "approve" else "Rejected"
         detail = f"By {ae.actor_name}"
         if ae.actor_email:
             detail += f" ({ae.actor_email})"
         if ae.edits_json:
-            detail += " — drafts were edited before sending"
+            detail += " &mdash; drafts were edited before sending"
         events.append({
             "timestamp": ae.approved_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "icon": icon,
@@ -167,7 +233,7 @@ def _build_timeline_for_template(sr: StructuredRequest) -> list[dict]:
     for om in sr.outbound_messages:
         events.append({
             "timestamp": om.sent_at.strftime("%Y-%m-%d %H:%M:%S UTC") if om.sent_at else "pending",
-            "icon": "📤",
+            "icon": "&#128228;",
             "label": f"Outbound ({om.kind.value.title()})",
             "detail": f"To: {om.to_address} via {om.transport.upper()}",
         })

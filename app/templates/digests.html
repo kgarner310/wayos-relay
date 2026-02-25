@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Digest History — ServiceInbox Lite{% endblock %}
+
+{% block content %}
+<div class="inbox-header">
+  <h1>Digest History</h1>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="generateDigest()">Generate Digest Now</button>
+  </div>
+</div>
+
+{% if digests | length == 0 %}
+<div class="empty-state">
+  <p>No digests generated yet. Click "Generate Digest Now" or wait for the scheduled runs.</p>
+</div>
+{% else %}
+<table class="digest-table">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Period</th>
+      <th>Items</th>
+      <th>Sent To</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in digests %}
+    <tr>
+      <td>{{ d.generated_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+      <td><span class="badge period-badge">{{ d.period_label | title }}</span></td>
+      <td><strong>{{ d.item_count }}</strong></td>
+      <td class="muted">{{ d.sent_to if d.sent_to else "—" }}</td>
+      <td>
+        <a href="/api/digests/{{ d.id }}/html" target="_blank" class="btn btn-secondary btn-sm">View</a>
+        <a href="/api/digests/{{ d.id }}/html" target="_blank" class="btn btn-secondary btn-sm" onclick="window.print()">Print</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div id="digest-toast" class="toast" style="display:none"></div>
+{% endblock %}
+
+{% block scripts %}
+async function generateDigest() {
+  const res = await fetch('/api/digest/generate', {method: 'POST'});
+  const data = await res.json();
+  if (data.status === 'generated') {
+    window.location.reload();
+  } else {
+    const toast = document.getElementById('digest-toast');
+    toast.textContent = 'No pending items to digest';
+    toast.className = 'toast toast-info';
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  }
+}
+{% endblock %}

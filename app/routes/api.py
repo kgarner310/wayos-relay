@@ -1,18 +1,21 @@
-"""JSON API: simulate, list, approve/reject, compliance timeline, E&O export."""
+"""JSON API: simulate, list, approve/reject, digest, compliance timeline, E&O export."""
 import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.database import get_session
+from app.digest import generate_digest
 from app.ingest import ingest_message
 from app.models import (
     ApprovalAction,
     ApprovalEvent,
     ChannelType,
+    DigestRun,
     DraftArtifacts,
     MessageStatus,
     OutboundKind,
@@ -214,6 +217,77 @@ def reject_request(
     session.commit()
     session.refresh(sr)
     return _sr_to_dict(sr, session)
+
+
+# ---------- Digest ----------
+
+@router.post("/digest/generate")
+def trigger_digest(session: Session = Depends(get_session)):
+    """Manually trigger a digest generation."""
+    recipients = [
+        e.strip() for e in settings.digest_recipients.split(",") if e.strip()
+    ]
+    run = generate_digest(session, period_label="manual", recipient_emails=recipients)
+    if not run:
+        return {"status": "empty", "message": "No pending items to digest"}
+
+    # Send digest email if recipients are configured
+    if recipients and settings.smtp_configured:
+        for email_addr in recipients:
+            send_email(
+                email_addr,
+                f"ServiceInbox Digest — {run.item_count} items require service",
+                run.html_snapshot,
+            )
+
+    return {
+        "status": "generated",
+        "digest_id": run.id,
+        "item_count": run.item_count,
+        "sent_to": run.sent_to,
+    }
+
+
+@router.get("/digests")
+def list_digests(session: Session = Depends(get_session)):
+    """List all digest runs, newest first."""
+    stmt = select(DigestRun).order_by(DigestRun.generated_at.desc())  # type: ignore[union-attr]
+    runs = session.exec(stmt).all()
+    return [
+        {
+            "id": r.id,
+            "generated_at": r.generated_at.isoformat(),
+            "period_label": r.period_label,
+            "item_count": r.item_count,
+            "sent_to": r.sent_to,
+        }
+        for r in runs
+    ]
+
+
+@router.get("/digests/{digest_id}")
+def get_digest(digest_id: str, session: Session = Depends(get_session)):
+    """Get a single digest run with its HTML snapshot."""
+    run = session.get(DigestRun, digest_id)
+    if not run:
+        raise HTTPException(404, "Digest not found")
+    return {
+        "id": run.id,
+        "generated_at": run.generated_at.isoformat(),
+        "period_label": run.period_label,
+        "item_count": run.item_count,
+        "sent_to": run.sent_to,
+    }
+
+
+@router.get("/digests/{digest_id}/html")
+def get_digest_html(digest_id: str, session: Session = Depends(get_session)):
+    """Return the rendered HTML of a digest (for viewing/printing)."""
+    run = session.get(DigestRun, digest_id)
+    if not run:
+        raise HTTPException(404, "Digest not found")
+    html = run.html_snapshot.replace("{{ app_base_url }}", settings.app_base_url)
+    return HTMLResponse(html)
 
 
 # ---------- Compliance Timeline ----------

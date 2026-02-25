@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ServiceInbox Lite{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+  <h1>Service Dashboard</h1>
+  <div class="actions">
+    <button id="btn-seed" class="btn btn-secondary" onclick="seedData()">Load Seeds</button>
+    <button id="btn-simulate" class="btn btn-secondary" onclick="openSimulate()">+ Simulate</button>
+    <button id="btn-digest" class="btn btn-primary" onclick="generateDigest()">Generate Digest Now</button>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-number{% if urgent_count > 0 %} stat-urgent{% endif %}">{{ urgent_count }}</div>
+    <div class="stat-label">Urgent Items</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ pending_count }}</div>
+    <div class="stat-label">Pending Review</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ total_count }}</div>
+    <div class="stat-label">Total Requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ recent_digests | length }}</div>
+    <div class="stat-label">Digests Sent</div>
+  </div>
+</div>
+
+{% if pending_count > 0 %}
+<!-- Pending by category -->
+<div class="section-card">
+  <h2>Pending by Category</h2>
+  <div class="category-bars">
+    {% set icons = {"coi": "&#128196;", "vehicle_add": "&#128663;", "driver_add": "&#128100;", "address_change": "&#127968;", "payroll_change": "&#128176;", "coverage_change": "&#128737;", "other": "&#128233;"} %}
+    {% for intent, count in by_intent.items() %}
+    <div class="category-row">
+      <span class="category-icon">{{ icons.get(intent, "&#128233;") | safe }}</span>
+      <a href="/inbox?intent={{ intent }}&status=review" class="category-label">
+        {{ intent | replace("_", " ") | title }}
+      </a>
+      <div class="category-bar-track">
+        <div class="category-bar-fill" style="width: {{ (count / pending_count * 100) | int }}%"></div>
+      </div>
+      <span class="category-count">{{ count }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <a href="/inbox?status=review" class="btn btn-secondary btn-sm" style="margin-top:12px;">View All Pending</a>
+</div>
+{% else %}
+<div class="section-card empty-state">
+  <p>No pending items. Load seeds or simulate messages to get started.</p>
+</div>
+{% endif %}
+
+<!-- Recent digests -->
+<div class="section-card">
+  <h2>Recent Digests</h2>
+  {% if recent_digests | length > 0 %}
+  <table class="digest-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Period</th>
+        <th>Items</th>
+        <th>Sent To</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in recent_digests %}
+      <tr>
+        <td>{{ d.generated_at.strftime("%b %d %I:%M %p") }}</td>
+        <td><span class="badge period-badge">{{ d.period_label | title }}</span></td>
+        <td><strong>{{ d.item_count }}</strong></td>
+        <td class="muted">{{ d.sent_to if d.sent_to else "—" }}</td>
+        <td>
+          <a href="/api/digests/{{ d.id }}/html" target="_blank" class="btn btn-secondary btn-sm">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <a href="/digests" class="btn btn-secondary btn-sm" style="margin-top:8px;">All Digests</a>
+  {% else %}
+  <p class="muted">No digests generated yet. Click "Generate Digest Now" to create one.</p>
+  {% endif %}
+</div>
+
+<!-- Simulate modal -->
+<div id="simulate-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <h2>Simulate Inbound Message</h2>
+    <form id="simulate-form">
+      <label>Channel
+        <select name="channel">
+          <option value="email">Email</option>
+          <option value="sms">SMS</option>
+        </select>
+      </label>
+      <label>Sender
+        <input name="sender" value="producer@example.com" required>
+      </label>
+      <label>Subject
+        <input name="subject" placeholder="(optional for SMS)">
+      </label>
+      <label>Body
+        <textarea name="body" rows="5" required placeholder="Type a sample message..."></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeSimulate()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Send</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Digest result toast -->
+<div id="digest-toast" class="toast" style="display:none"></div>
+{% endblock %}
+
+{% block scripts %}
+function openSimulate() {
+  document.getElementById('simulate-modal').style.display = 'flex';
+}
+function closeSimulate() {
+  document.getElementById('simulate-modal').style.display = 'none';
+}
+document.getElementById('simulate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = Object.fromEntries(fd);
+  const res = await fetch('/api/simulate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  });
+  if (res.ok) {
+    window.location.href = '/';
+  } else {
+    alert('Error: ' + (await res.text()));
+  }
+});
+
+async function seedData() {
+  const btn = document.getElementById('btn-seed');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  const res = await fetch('/api/seed', {method: 'POST'});
+  if (res.ok) {
+    window.location.href = '/';
+  } else {
+    alert('Error: ' + (await res.text()));
+    btn.disabled = false;
+    btn.textContent = 'Load Seeds';
+  }
+}
+
+async function generateDigest() {
+  const btn = document.getElementById('btn-digest');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  try {
+    const res = await fetch('/api/digest/generate', {method: 'POST'});
+    const data = await res.json();
+    const toast = document.getElementById('digest-toast');
+    if (data.status === 'generated') {
+      toast.textContent = 'Digest generated: ' + data.item_count + ' items';
+      toast.className = 'toast toast-success';
+      toast.style.display = 'block';
+      setTimeout(() => { window.location.href = '/'; }, 1500);
+    } else {
+      toast.textContent = 'No pending items to digest';
+      toast.className = 'toast toast-info';
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+  } catch (err) {
+    alert('Error generating digest');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Generate Digest Now';
+}
+{% endblock %}

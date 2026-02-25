@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}ServiceInbox{% endblock %}</title>
+  <title>{% block title %}ServiceInbox Lite{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <nav class="topbar">
-    <a href="/" class="logo">ServiceInbox</a>
-    <span class="tagline">AI Service Inbox for Insurance</span>
+    <a href="/" class="logo">ServiceInbox <span class="lite-badge">Lite</span></a>
+    <div class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/inbox">Inbox</a>
+      <a href="/digests">Digests</a>
+    </div>
   </nav>
   <main class="container">
     {% block content %}{% endblock %}

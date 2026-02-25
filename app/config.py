@@ -30,10 +30,15 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
 
     # App
-    app_title: str = "ServiceInbox"
+    app_title: str = "ServiceInbox Lite"
     app_env: str = "development"
     app_base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-in-production"
+
+    # Digest
+    digest_schedule: str = "08:00,12:00,16:00"  # comma-separated HH:MM (local time)
+    digest_recipients: str = ""  # comma-separated emails to receive digests
+    digest_timezone: str = "America/New_York"
 
     @property
     def smtp_configured(self) -> bool:

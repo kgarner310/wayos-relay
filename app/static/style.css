@@ -22,13 +22,160 @@ body {
   color: #4fc3f7;
   text-decoration: none;
 }
-.topbar .tagline {
-  font-size: 0.85rem;
-  opacity: 0.7;
+.lite-badge {
+  background: #4fc3f7;
+  color: #1a1a2e;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  vertical-align: super;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
+.nav-links {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: auto;
+}
+.nav-links a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: #fff; }
 
 /* === Container === */
 .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+/* === Dashboard === */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.dashboard-header h1 { font-size: 1.5rem; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.stat-number {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.stat-number.stat-urgent { color: #e74c3c; }
+.stat-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+  margin-top: 0.25rem;
+}
+
+.section-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 1.25rem;
+}
+.section-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+  color: #333;
+}
+
+/* Category bars (dashboard) */
+.category-bars { display: flex; flex-direction: column; gap: 0.5rem; }
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.category-icon { font-size: 1.1rem; width: 1.5rem; text-align: center; }
+.category-label {
+  width: 160px;
+  font-size: 0.85rem;
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+}
+.category-label:hover { color: #4fc3f7; }
+.category-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.category-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4fc3f7, #1a73e8);
+  border-radius: 4px;
+  min-width: 8px;
+}
+.category-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+  width: 2rem;
+  text-align: right;
+}
+
+/* Digest table */
+.digest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.digest-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: #f0f0f5;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+.digest-table td {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #eee;
+}
+.period-badge {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+/* Toast notification */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  z-index: 200;
+}
+.toast-success { background: #2e7d32; color: #fff; }
+.toast-info { background: #1565c0; color: #fff; }
 
 /* === Inbox Header === */
 .inbox-header {
@@ -38,7 +185,7 @@ body {
   margin-bottom: 1rem;
 }
 .inbox-header h1 { font-size: 1.5rem; }
-.actions { display: flex; gap: 0.5rem; }
+.actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 /* === Filter Bar === */
 .filter-bar {
@@ -139,7 +286,6 @@ body {
   font-weight: 600;
   text-transform: uppercase;
 }
-/* Status badges — all statuses covered */
 .status-badge-new { background: #e3f2fd; color: #1565c0; }
 .status-badge-parsed { background: #e8eaf6; color: #283593; }
 .status-badge-review { background: #fff3e0; color: #e65100; }
@@ -148,7 +294,6 @@ body {
 .status-badge-rejected { background: #fce4ec; color: #c62828; }
 .status-badge-error { background: #ffebee; color: #b71c1c; }
 
-/* Urgency 0-100 mapped to 4 tiers (0-24, 25-49, 50-74, 75-100) */
 .urgency-score-0 { background: #e8f5e9; color: #2e7d32; }
 .urgency-score-1 { background: #fff8e1; color: #f9a825; }
 .urgency-score-2 { background: #fff3e0; color: #e65100; }
@@ -223,7 +368,6 @@ textarea {
   margin-top: 1rem;
 }
 
-/* Approval / Rejection badges */
 .event-badge {
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -234,17 +378,6 @@ textarea {
 .event-reject { background: #fce4ec; color: #c62828; }
 
 .muted { color: #888; font-size: 0.85rem; }
-
-/* === Audit === */
-.audit-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.audit-table th {
-  text-align: left;
-  padding: 0.4rem 0.5rem;
-  background: #f0f0f5;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-}
-.audit-table td { padding: 0.4rem 0.5rem; border-top: 1px solid #eee; }
 
 /* === Compliance Timeline === */
 .timeline {
