@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Inbox — ServiceInbox{% endblock %}
+
+{% block content %}
+<div class="inbox-header">
+  <h1>Service Inbox</h1>
+  <div class="actions">
+    <button id="btn-seed" class="btn btn-secondary" onclick="seedData()">Load Seeds</button>
+    <button id="btn-simulate" class="btn btn-primary" onclick="openSimulate()">+ Simulate Message</button>
+  </div>
+</div>
+
+<!-- Simulate modal -->
+<div id="simulate-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <h2>Simulate Inbound Message</h2>
+    <form id="simulate-form">
+      <label>Channel
+        <select name="channel">
+          <option value="email">Email</option>
+          <option value="sms">SMS</option>
+        </select>
+      </label>
+      <label>Sender
+        <input name="sender" value="demo@example.com" required>
+      </label>
+      <label>Subject
+        <input name="subject" placeholder="(optional for SMS)">
+      </label>
+      <label>Body
+        <textarea name="body" rows="5" required placeholder="Type a sample message..."></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeSimulate()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Send</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if requests|length == 0 %}
+  <div class="empty-state">
+    <p>No requests yet. Click <strong>Load Seeds</strong> to add demo data or <strong>Simulate Message</strong> to create one.</p>
+  </div>
+{% else %}
+<table class="inbox-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Urgency</th>
+      <th>Status</th>
+      <th>Intent</th>
+      <th>Customer</th>
+      <th>Channel</th>
+      <th>Subject / Preview</th>
+      <th>Received</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sr in requests %}
+    <tr class="status-{{ sr.status.value }} urgency-{{ sr.urgency }}" onclick="window.location='/request/{{ sr.id }}'">
+      <td>{{ sr.id }}</td>
+      <td>
+        <span class="badge urgency-badge-{{ sr.urgency }}">{{ sr.urgency }}</span>
+      </td>
+      <td>
+        <span class="badge status-badge-{{ sr.status.value }}">{{ sr.status.value }}</span>
+      </td>
+      <td>{{ sr.intent.value | replace("_", " ") | title }}</td>
+      <td>{{ sr.customer_name or "Unknown" }}</td>
+      <td>{{ sr.raw_message.channel.value if sr.raw_message else "?" }}</td>
+      <td class="preview-cell">
+        {% if sr.raw_message %}
+          {% if sr.raw_message.subject %}
+            {{ sr.raw_message.subject[:60] }}
+          {% else %}
+            {{ sr.raw_message.body[:60] }}...
+          {% endif %}
+        {% endif %}
+      </td>
+      <td>{{ sr.created_at.strftime("%b %d %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+function openSimulate() {
+  document.getElementById('simulate-modal').style.display = 'flex';
+}
+function closeSimulate() {
+  document.getElementById('simulate-modal').style.display = 'none';
+}
+document.getElementById('simulate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = Object.fromEntries(fd);
+  const res = await fetch('/api/simulate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  });
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert('Error: ' + (await res.text()));
+  }
+});
+
+async function seedData() {
+  const btn = document.getElementById('btn-seed');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  const res = await fetch('/api/seed', {method: 'POST'});
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert('Error: ' + (await res.text()));
+    btn.disabled = false;
+    btn.textContent = 'Load Seeds';
+  }
+}
+{% endblock %}

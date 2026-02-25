@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Request #{{ sr.id }} — ServiceInbox{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; Back to Inbox</a>
+
+<div class="detail-header">
+  <h1>Request #{{ sr.id }} — {{ sr.intent.value | replace("_", " ") | title }}</h1>
+  <span class="badge status-badge-{{ sr.status.value }}">{{ sr.status.value }}</span>
+  <span class="badge urgency-badge-{{ sr.urgency }}">Urgency: {{ sr.urgency }}</span>
+</div>
+
+<div class="detail-grid">
+  <!-- Left: original message -->
+  <section class="card">
+    <h2>Original Message</h2>
+    <dl>
+      <dt>Customer</dt><dd>{{ sr.customer_name or "Unknown" }}</dd>
+      <dt>Policy Hint</dt><dd>{{ sr.policy_hint or "None detected" }}</dd>
+      {% if sr.raw_message %}
+      <dt>Channel</dt><dd>{{ sr.raw_message.channel.value | upper }}</dd>
+      <dt>Sender</dt><dd>{{ sr.raw_message.sender }}</dd>
+      {% if sr.raw_message.subject %}
+      <dt>Subject</dt><dd>{{ sr.raw_message.subject }}</dd>
+      {% endif %}
+      <dt>Received</dt><dd>{{ sr.raw_message.received_at.strftime("%Y-%m-%d %H:%M:%S UTC") }}</dd>
+      {% endif %}
+    </dl>
+    {% if sr.raw_message %}
+    <pre class="msg-body">{{ sr.raw_message.body }}</pre>
+    {% endif %}
+  </section>
+
+  <!-- Right: generated drafts -->
+  <section class="card">
+    <h2>Generated Drafts</h2>
+
+    <h3>Client Reply</h3>
+    <textarea id="client-reply" rows="8" {% if sr.status.value in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.client_reply_draft }}</textarea>
+
+    <h3>Carrier Email</h3>
+    <textarea id="carrier-email" rows="8" {% if sr.status.value in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.carrier_email_draft }}</textarea>
+
+    <h3>AMS Note</h3>
+    <pre class="msg-body">{{ sr.ams_note_draft }}</pre>
+
+    {% if sr.status.value not in ('sent', 'rejected') %}
+    <div class="draft-actions">
+      <button class="btn btn-success" onclick="approveRequest({{ sr.id }})">Approve & Send</button>
+      <button class="btn btn-danger" onclick="rejectRequest({{ sr.id }})">Reject</button>
+    </div>
+    {% endif %}
+
+    {% if sr.approved_by %}
+    <p class="approved-info">Approved by <strong>{{ sr.approved_by }}</strong> at {{ sr.approved_at.strftime("%Y-%m-%d %H:%M") if sr.approved_at else "N/A" }}</p>
+    {% endif %}
+  </section>
+</div>
+
+<!-- Audit log -->
+<section class="card audit-section">
+  <h2>Audit Log</h2>
+  <table class="audit-table">
+    <thead>
+      <tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+      {% for log in audit_logs %}
+      <tr>
+        <td>{{ log.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td>{{ log.action }}</td>
+        <td>{{ log.actor }}</td>
+        <td>{{ log.details }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+async function approveRequest(id) {
+  const clientReply = document.getElementById('client-reply').value;
+  const carrierEmail = document.getElementById('carrier-email').value;
+  const res = await fetch(`/api/requests/${id}/approve`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      approved_by: 'agent',
+      client_reply_draft: clientReply,
+      carrier_email_draft: carrierEmail,
+    }),
+  });
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert('Error: ' + (await res.text()));
+  }
+}
+
+async function rejectRequest(id) {
+  if (!confirm('Reject this request?')) return;
+  const res = await fetch(`/api/requests/${id}/reject`, {method: 'POST'});
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert('Error: ' + (await res.text()));
+  }
+}
+{% endblock %}

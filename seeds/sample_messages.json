@@ -1,0 +1,44 @@
+[
+  {
+    "channel": "email",
+    "sender": "john.smith@acmecorp.com",
+    "subject": "Need COI for new contract ASAP",
+    "body": "Hi, this is John Smith. I need a certificate of insurance for a new contract we just signed. The general contractor is requiring it by Friday. Our policy is BOP-2024-4471. Please add Apex Construction as additional insured. Thanks!"
+  },
+  {
+    "channel": "sms",
+    "sender": "+15559876543",
+    "subject": "",
+    "body": "Hey, I just bought a new truck and need to add it to my policy. 2024 Ford F-150, VIN 1FTFW1E50NFA12345. Policy WC-88231. Thanks, Mike Davis"
+  },
+  {
+    "channel": "email",
+    "sender": "sarah.jones@bigbiz.com",
+    "subject": "Address change for policy",
+    "body": "Hello,\n\nWe have moved our office to a new location. Please update our address on file.\n\nOld: 123 Main St, Suite 200, Dallas TX 75201\nNew: 456 Oak Ave, Floor 3, Dallas TX 75202\n\nPolicy number: GL-2023-8899\n\nThanks,\nSarah Jones"
+  },
+  {
+    "channel": "email",
+    "sender": "hr@techstartup.io",
+    "subject": "Payroll update for workers comp audit",
+    "body": "Hi team,\n\nAttached is our updated payroll for the workers comp audit. Our total payroll has increased from $2.1M to $2.8M due to new hires.\n\nPolicy: WC-2024-1122\n\nPlease let us know if you need anything else.\n\nBest,\nLisa Chen\nHR Director"
+  },
+  {
+    "channel": "sms",
+    "sender": "+15551112222",
+    "subject": "",
+    "body": "Need to add a new driver to our fleet policy ASAP. His name is Carlos Rodriguez, DOB 03/15/1990, license TX-12345678. This is urgent, he starts tomorrow!!"
+  },
+  {
+    "channel": "email",
+    "sender": "bob.wilson@wilsonplumbing.com",
+    "subject": "Increase general liability limits",
+    "body": "Hi,\n\nI need to increase our general liability coverage limits from $1M to $2M per occurrence. A client is requiring higher limits for a commercial project.\n\nPolicy: GL-2024-5567\n\nPlease send me a quote for the increase.\n\nThanks,\nBob Wilson\nWilson Plumbing LLC"
+  },
+  {
+    "channel": "sms",
+    "sender": "+15553334444",
+    "subject": "",
+    "body": "Hi I was in a fender bender this morning. Not sure what to do. My policy is AUTO-9922. Can someone call me back? Thanks, Maria"
+  }
+]
