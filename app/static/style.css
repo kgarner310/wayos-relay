@@ -99,11 +99,13 @@ body {
 .status-badge-sent { background: #e0f2f1; color: #00695c; }
 .status-badge-rejected { background: #fce4ec; color: #c62828; }
 
-.urgency-badge-1 { background: #e8f5e9; color: #2e7d32; }
-.urgency-badge-2 { background: #f1f8e9; color: #558b2f; }
-.urgency-badge-3 { background: #fff8e1; color: #f9a825; }
-.urgency-badge-4 { background: #fff3e0; color: #e65100; }
-.urgency-badge-5 { background: #ffebee; color: #c62828; }
+/* Urgency 0-100 mapped to 4 tiers (0-24, 25-49, 50-74, 75-100) */
+.urgency-score-0 { background: #e8f5e9; color: #2e7d32; }
+.urgency-score-1 { background: #fff8e1; color: #f9a825; }
+.urgency-score-2 { background: #fff3e0; color: #e65100; }
+.urgency-score-3 { background: #ffebee; color: #c62828; }
+
+.confidence-score { background: #e3f2fd; color: #1565c0; }
 
 /* === Detail Page === */
 .back-link {
@@ -233,4 +235,22 @@ textarea {
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   color: #666;
+}
+
+/* === Checklist === */
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.checklist li {
+  padding: 0.3rem 0 0.3rem 1.5rem;
+  position: relative;
+  font-size: 0.85rem;
+}
+.checklist li::before {
+  content: "\2610";
+  position: absolute;
+  left: 0;
+  color: #888;
 }

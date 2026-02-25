@@ -1,25 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Request #{{ sr.id }} — ServiceInbox{% endblock %}
+{% block title %}Request {{ sr.id[:8] }} — ServiceInbox{% endblock %}
 
 {% block content %}
 <a href="/" class="back-link">&larr; Back to Inbox</a>
 
 <div class="detail-header">
-  <h1>Request #{{ sr.id }} — {{ sr.intent.value | replace("_", " ") | title }}</h1>
-  <span class="badge status-badge-{{ sr.status.value }}">{{ sr.status.value }}</span>
-  <span class="badge urgency-badge-{{ sr.urgency }}">Urgency: {{ sr.urgency }}</span>
+  <h1>{{ sr.intent_category.value | replace("_", " ") | title }}</h1>
+  <span class="badge status-badge-{{ sr.raw_message.status.value if sr.raw_message else 'new' }}">{{ sr.raw_message.status.value if sr.raw_message else "new" }}</span>
+  <span class="badge urgency-score urgency-score-{{ (sr.urgency_score // 25) | min(3) }}">Urgency: {{ sr.urgency_score }}</span>
+  <span class="badge confidence-score">Confidence: {{ sr.confidence_score }}%</span>
 </div>
 
 <div class="detail-grid">
-  <!-- Left: original message -->
+  <!-- Left: original message + entities -->
   <section class="card">
     <h2>Original Message</h2>
     <dl>
-      <dt>Customer</dt><dd>{{ sr.customer_name or "Unknown" }}</dd>
-      <dt>Policy Hint</dt><dd>{{ sr.policy_hint or "None detected" }}</dd>
+      <dt>Customer</dt><dd>{{ entities.get("customer_name", "Unknown") }}</dd>
+      <dt>Policy</dt><dd>{{ entities.get("policy_number", "None detected") }}</dd>
       {% if sr.raw_message %}
       <dt>Channel</dt><dd>{{ sr.raw_message.channel.value | upper }}</dd>
-      <dt>Sender</dt><dd>{{ sr.raw_message.sender }}</dd>
+      <dt>From</dt><dd>{{ sr.raw_message.from_address }}</dd>
       {% if sr.raw_message.subject %}
       <dt>Subject</dt><dd>{{ sr.raw_message.subject }}</dd>
       {% endif %}
@@ -27,7 +28,24 @@
       {% endif %}
     </dl>
     {% if sr.raw_message %}
-    <pre class="msg-body">{{ sr.raw_message.body }}</pre>
+    <pre class="msg-body">{{ sr.raw_message.body_text }}</pre>
+    {% endif %}
+
+    <h3>Extracted Entities</h3>
+    <dl>
+      {% for key, val in entities.items() %}
+      <dt>{{ key | replace("_", " ") | title }}</dt>
+      <dd>{{ val }}</dd>
+      {% endfor %}
+    </dl>
+
+    {% if checklist %}
+    <h3>Internal Checklist</h3>
+    <ul class="checklist">
+      {% for item in checklist %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
     {% endif %}
   </section>
 
@@ -35,46 +53,59 @@
   <section class="card">
     <h2>Generated Drafts</h2>
 
+    {% set status = sr.raw_message.status.value if sr.raw_message else "new" %}
+
     <h3>Client Reply</h3>
-    <textarea id="client-reply" rows="8" {% if sr.status.value in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.client_reply_draft }}</textarea>
+    <textarea id="client-reply" rows="8" {% if status in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.draft_artifacts.client_reply_draft if sr.draft_artifacts else "" }}</textarea>
 
     <h3>Carrier Email</h3>
-    <textarea id="carrier-email" rows="8" {% if sr.status.value in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.carrier_email_draft }}</textarea>
+    <textarea id="carrier-email" rows="8" {% if status in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.draft_artifacts.carrier_email_draft if sr.draft_artifacts else "" }}</textarea>
 
     <h3>AMS Note</h3>
-    <pre class="msg-body">{{ sr.ams_note_draft }}</pre>
+    <pre class="msg-body">{{ sr.draft_artifacts.ams_note_draft if sr.draft_artifacts else "" }}</pre>
 
-    {% if sr.status.value not in ('sent', 'rejected') %}
+    {% if status not in ('sent', 'rejected') %}
     <div class="draft-actions">
-      <button class="btn btn-success" onclick="approveRequest({{ sr.id }})">Approve & Send</button>
-      <button class="btn btn-danger" onclick="rejectRequest({{ sr.id }})">Reject</button>
+      <button class="btn btn-success" onclick="approveRequest('{{ sr.id }}')">Approve & Send</button>
+      <button class="btn btn-danger" onclick="rejectRequest('{{ sr.id }}')">Reject</button>
     </div>
     {% endif %}
 
-    {% if sr.approved_by %}
-    <p class="approved-info">Approved by <strong>{{ sr.approved_by }}</strong> at {{ sr.approved_at.strftime("%Y-%m-%d %H:%M") if sr.approved_at else "N/A" }}</p>
-    {% endif %}
+    {% for ae in sr.approval_events %}
+    <p class="approved-info">{{ ae.action.value | title }} by <strong>{{ ae.actor_name }}</strong> at {{ ae.approved_at.strftime("%Y-%m-%d %H:%M") }}</p>
+    {% endfor %}
   </section>
 </div>
 
-<!-- Audit log -->
+<!-- Outbound messages -->
+{% if sr.outbound_messages %}
 <section class="card audit-section">
-  <h2>Audit Log</h2>
+  <h2>Outbound Messages</h2>
   <table class="audit-table">
     <thead>
-      <tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr>
+      <tr><th>Kind</th><th>To</th><th>Transport</th><th>Sent</th></tr>
     </thead>
     <tbody>
-      {% for log in audit_logs %}
+      {% for om in sr.outbound_messages %}
       <tr>
-        <td>{{ log.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-        <td>{{ log.action }}</td>
-        <td>{{ log.actor }}</td>
-        <td>{{ log.details }}</td>
+        <td>{{ om.kind.value | title }}</td>
+        <td>{{ om.to_address }}</td>
+        <td>{{ om.transport }}</td>
+        <td>{{ om.sent_at.strftime("%Y-%m-%d %H:%M:%S") if om.sent_at else "pending" }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+</section>
+{% endif %}
+
+<!-- Compliance link -->
+<section class="card audit-section">
+  <h2>Compliance</h2>
+  <p>
+    <a href="/api/requests/{{ sr.id }}/compliance" target="_blank" class="btn btn-secondary">View Timeline (JSON)</a>
+    <a href="/api/requests/{{ sr.id }}/eo-report" target="_blank" class="btn btn-secondary">E&O Report (Text)</a>
+  </p>
 </section>
 {% endblock %}
 
@@ -86,7 +117,7 @@ async function approveRequest(id) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      approved_by: 'agent',
+      actor_name: 'agent',
       client_reply_draft: clientReply,
       carrier_email_draft: carrierEmail,
     }),
