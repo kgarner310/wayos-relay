@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "serviceinbox",
+      "runtimeExecutable": ".venv/Scripts/python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--port", "8000", "--ws", "none"],
+      "port": 8000
+    }
+  ]
+}

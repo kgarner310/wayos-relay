@@ -7,7 +7,7 @@
 <div class="detail-header">
   <h1>{{ sr.intent_category.value | replace("_", " ") | title }}</h1>
   <span class="badge status-badge-{{ sr.raw_message.status.value if sr.raw_message else 'new' }}">{{ sr.raw_message.status.value if sr.raw_message else "new" }}</span>
-  <span class="badge urgency-score urgency-score-{{ (sr.urgency_score // 25) | min(3) }}">Urgency: {{ sr.urgency_score }}</span>
+  <span class="badge urgency-score urgency-score-{{ [(sr.urgency_score // 25), 3] | min }}">Urgency: {{ sr.urgency_score }}</span>
   <span class="badge confidence-score">Confidence: {{ sr.confidence_score }}%</span>
 </div>
 
@@ -32,12 +32,16 @@
     {% endif %}
 
     <h3>Extracted Entities</h3>
+    {% if entities %}
     <dl>
       {% for key, val in entities.items() %}
       <dt>{{ key | replace("_", " ") | title }}</dt>
-      <dd>{{ val }}</dd>
+      <dd>{% if val is iterable and val is not string %}{{ val | join(", ") }}{% else %}{{ val }}{% endif %}</dd>
       {% endfor %}
     </dl>
+    {% else %}
+    <p class="muted">No entities extracted.</p>
+    {% endif %}
 
     {% if checklist %}
     <h3>Internal Checklist</h3>
@@ -49,48 +53,54 @@
     {% endif %}
   </section>
 
-  <!-- Right: generated drafts -->
+  <!-- Right: generated drafts + actions -->
   <section class="card">
     <h2>Generated Drafts</h2>
 
     {% set status = sr.raw_message.status.value if sr.raw_message else "new" %}
+    {% set is_locked = status in ('sent', 'rejected', 'approved') %}
 
     <h3>Client Reply</h3>
-    <textarea id="client-reply" rows="8" {% if status in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.draft_artifacts.client_reply_draft if sr.draft_artifacts else "" }}</textarea>
+    <textarea id="client-reply" rows="10" {% if is_locked %}disabled{% endif %}>{{ sr.draft_artifacts.client_reply_draft if sr.draft_artifacts else "" }}</textarea>
 
     <h3>Carrier Email</h3>
-    <textarea id="carrier-email" rows="8" {% if status in ('sent', 'rejected') %}disabled{% endif %}>{{ sr.draft_artifacts.carrier_email_draft if sr.draft_artifacts else "" }}</textarea>
+    <textarea id="carrier-email" rows="10" {% if is_locked %}disabled{% endif %}>{{ sr.draft_artifacts.carrier_email_draft if sr.draft_artifacts else "" }}</textarea>
 
     <h3>AMS Note</h3>
     <pre class="msg-body">{{ sr.draft_artifacts.ams_note_draft if sr.draft_artifacts else "" }}</pre>
 
-    {% if status not in ('sent', 'rejected') %}
+    {% if not is_locked %}
     <div class="draft-actions">
-      <button class="btn btn-success" onclick="approveRequest('{{ sr.id }}')">Approve & Send</button>
-      <button class="btn btn-danger" onclick="rejectRequest('{{ sr.id }}')">Reject</button>
+      <button class="btn btn-success" onclick="approveRequest('{{ sr.id }}')">Approve &amp; Send</button>
+      <button class="btn btn-danger" onclick="openRejectModal('{{ sr.id }}')">Reject</button>
     </div>
     {% endif %}
 
     {% for ae in sr.approval_events %}
-    <p class="approved-info">{{ ae.action.value | title }} by <strong>{{ ae.actor_name }}</strong> at {{ ae.approved_at.strftime("%Y-%m-%d %H:%M") }}</p>
+    <div class="event-badge event-{{ ae.action.value }}">
+      {{ ae.action.value | title }} by <strong>{{ ae.actor_name }}</strong>
+      {% if ae.actor_email %}<span class="muted">({{ ae.actor_email }})</span>{% endif %}
+      at {{ ae.approved_at.strftime("%Y-%m-%d %H:%M") }}
+    </div>
     {% endfor %}
   </section>
 </div>
 
 <!-- Outbound messages -->
 {% if sr.outbound_messages %}
-<section class="card audit-section">
+<section class="card section-gap">
   <h2>Outbound Messages</h2>
   <table class="audit-table">
     <thead>
-      <tr><th>Kind</th><th>To</th><th>Transport</th><th>Sent</th></tr>
+      <tr><th>Kind</th><th>To</th><th>Subject</th><th>Transport</th><th>Sent</th></tr>
     </thead>
     <tbody>
       {% for om in sr.outbound_messages %}
       <tr>
-        <td>{{ om.kind.value | title }}</td>
+        <td><span class="badge status-badge-sent">{{ om.kind.value | title }}</span></td>
         <td>{{ om.to_address }}</td>
-        <td>{{ om.transport }}</td>
+        <td>{{ om.subject[:50] }}</td>
+        <td>{{ om.transport | upper }}</td>
         <td>{{ om.sent_at.strftime("%Y-%m-%d %H:%M:%S") if om.sent_at else "pending" }}</td>
       </tr>
       {% endfor %}
@@ -99,43 +109,175 @@
 </section>
 {% endif %}
 
-<!-- Compliance link -->
-<section class="card audit-section">
-  <h2>Compliance</h2>
-  <p>
-    <a href="/api/requests/{{ sr.id }}/compliance" target="_blank" class="btn btn-secondary">View Timeline (JSON)</a>
-    <a href="/api/requests/{{ sr.id }}/eo-report" target="_blank" class="btn btn-secondary">E&O Report (Text)</a>
-  </p>
+<!-- Compliance Timeline (inline) -->
+<section class="card section-gap">
+  <h2>Compliance Timeline</h2>
+  {% if timeline %}
+  <div class="timeline">
+    {% for event in timeline %}
+    <div class="timeline-item">
+      <span class="timeline-icon">{{ event.icon }}</span>
+      <div class="timeline-body">
+        <div class="timeline-header">
+          <strong>{{ event.label }}</strong>
+          <span class="timeline-time">{{ event.timestamp }}</span>
+        </div>
+        <p class="timeline-detail">{{ event.detail }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No timeline events yet.</p>
+  {% endif %}
+  <div class="timeline-export">
+    <a href="/api/requests/{{ sr.id }}/compliance" target="_blank" class="btn btn-secondary btn-sm">Timeline JSON</a>
+    <a href="/api/requests/{{ sr.id }}/eo-report" target="_blank" class="btn btn-secondary btn-sm">E&amp;O Report</a>
+  </div>
 </section>
+
+<!-- Actor identity modal (shown once, then cached) -->
+<div id="actor-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <h2>Your Identity</h2>
+    <p class="muted">This is saved for the session so you only enter it once.</p>
+    <form id="actor-form">
+      <label>Your Name
+        <input id="actor-name" required placeholder="Jane Doe">
+      </label>
+      <label>Your Email
+        <input id="actor-email" type="email" required placeholder="jane@agency.com">
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeActorModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save &amp; Continue</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Reject modal -->
+<div id="reject-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <h2>Reject Request</h2>
+    <form id="reject-form">
+      <label>Reason for Rejection
+        <textarea id="reject-reason" rows="3" required placeholder="Describe why this request is being rejected..."></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+        <button type="submit" class="btn btn-danger">Confirm Reject</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-async function approveRequest(id) {
-  const clientReply = document.getElementById('client-reply').value;
-  const carrierEmail = document.getElementById('carrier-email').value;
-  const res = await fetch(`/api/requests/${id}/approve`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      actor_name: 'agent',
-      client_reply_draft: clientReply,
-      carrier_email_draft: carrierEmail,
-    }),
-  });
-  if (res.ok) {
-    window.location.reload();
-  } else {
-    alert('Error: ' + (await res.text()));
-  }
+// ---- Actor session management ----
+function getActor() {
+  const name = localStorage.getItem('si_actor_name');
+  const email = localStorage.getItem('si_actor_email');
+  if (name && email) return { name, email };
+  return null;
 }
 
-async function rejectRequest(id) {
-  if (!confirm('Reject this request?')) return;
-  const res = await fetch(`/api/requests/${id}/reject`, {method: 'POST'});
-  if (res.ok) {
-    window.location.reload();
-  } else {
-    alert('Error: ' + (await res.text()));
-  }
+function saveActor(name, email) {
+  localStorage.setItem('si_actor_name', name);
+  localStorage.setItem('si_actor_email', email);
 }
+
+// Callbacks waiting for actor to be set
+let _actorCallback = null;
+
+function ensureActor(callback) {
+  const actor = getActor();
+  if (actor) {
+    callback(actor);
+    return;
+  }
+  _actorCallback = callback;
+  document.getElementById('actor-modal').style.display = 'flex';
+  // Pre-fill if any values exist
+  document.getElementById('actor-name').value = '';
+  document.getElementById('actor-email').value = '';
+}
+
+function closeActorModal() {
+  document.getElementById('actor-modal').style.display = 'none';
+  _actorCallback = null;
+}
+
+document.getElementById('actor-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = document.getElementById('actor-name').value.trim();
+  const email = document.getElementById('actor-email').value.trim();
+  if (!name || !email) return;
+  saveActor(name, email);
+  document.getElementById('actor-modal').style.display = 'none';
+  if (_actorCallback) {
+    _actorCallback({ name, email });
+    _actorCallback = null;
+  }
+});
+
+// ---- Approve ----
+function approveRequest(id) {
+  ensureActor(async (actor) => {
+    const clientReply = document.getElementById('client-reply').value;
+    const carrierEmail = document.getElementById('carrier-email').value;
+    const res = await fetch(`/api/requests/${id}/approve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        actor_name: actor.name,
+        actor_email: actor.email,
+        client_reply_draft: clientReply,
+        carrier_email_draft: carrierEmail,
+      }),
+    });
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('Error: ' + (await res.text()));
+    }
+  });
+}
+
+// ---- Reject ----
+let _rejectId = null;
+
+function openRejectModal(id) {
+  _rejectId = id;
+  document.getElementById('reject-reason').value = '';
+  document.getElementById('reject-modal').style.display = 'flex';
+}
+
+function closeRejectModal() {
+  document.getElementById('reject-modal').style.display = 'none';
+  _rejectId = null;
+}
+
+document.getElementById('reject-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!_rejectId) return;
+  const reason = document.getElementById('reject-reason').value.trim();
+  ensureActor(async (actor) => {
+    const res = await fetch(`/api/requests/${_rejectId}/reject`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        actor_name: actor.name,
+        actor_email: actor.email,
+        reason: reason,
+      }),
+    });
+    if (res.ok) {
+      closeRejectModal();
+      window.location.reload();
+    } else {
+      alert('Error: ' + (await res.text()));
+    }
+  });
+});
 {% endblock %}

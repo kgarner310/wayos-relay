@@ -174,21 +174,41 @@ def approve_request(
     return _sr_to_dict(sr, session)
 
 
+class RejectRequest(BaseModel):
+    actor_name: str = "agent"
+    actor_email: str = ""
+    reason: str = ""
+
+
 @router.post("/requests/{request_id}/reject")
-def reject_request(request_id: str, session: Session = Depends(get_session)):
+def reject_request(
+    request_id: str,
+    payload: RejectRequest | None = None,
+    session: Session = Depends(get_session),
+):
     sr = session.get(StructuredRequest, request_id)
     if not sr:
         raise HTTPException(404, "Request not found")
 
     raw = sr.raw_message
     if raw:
+        if raw.status in (MessageStatus.sent, MessageStatus.rejected):
+            raise HTTPException(400, f"Cannot reject a {raw.status.value} request")
         raw.status = MessageStatus.rejected
         session.add(raw)
+
+    actor_name = payload.actor_name if payload else "agent"
+    actor_email = payload.actor_email if payload else ""
+    reason = payload.reason if payload else ""
+
+    edits = {"reason": reason} if reason else None
 
     event = ApprovalEvent(
         structured_request_id=sr.id,
         action=ApprovalAction.reject,
-        actor_name="agent",
+        actor_name=actor_name,
+        actor_email=actor_email,
+        edits_json=json.dumps(edits) if edits else None,
     )
     session.add(event)
     session.commit()

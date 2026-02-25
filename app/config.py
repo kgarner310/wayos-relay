@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
+    twilio_verify_signature: bool = False  # Set True in production
 
     # IMAP (inbound email)
     imap_host: str = "imap.gmail.com"
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     imap_user: str = ""
     imap_password: str = ""
     imap_folder: str = "INBOX"
-    imap_poll_interval_seconds: int = 60
+    imap_poll_interval_seconds: int = 30
 
     # SMTP (outbound email)
     smtp_host: str = "smtp.gmail.com"
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
     # App
     app_title: str = "ServiceInbox"
     app_env: str = "development"
+    app_base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-in-production"
 
     @property
